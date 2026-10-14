@@ -1,0 +1,398 @@
+---
+title: "Table 1"
+output: html_notebook
+date: "2026-09"
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+*** For the manuscript, I used the imputed dataset with the largest sample size (imp9) to present Table one ***
+
+## Load package
+```{r}
+library(tableone)
+library(purrr)
+library(dplyr)
+```
+
+## Load dataset
+```{r}
+imputed_data <- readRDS('/Users/beiwen/Library/CloudStorage/OneDrive-UniversityofToronto/PhD Documents/PhD Projects/Objective 1/UKB RAP/Results/V5-change hypertension_bmi2_ethnicity/without_hypertension/m10_maxit20/imputed_data.rds')
+coxph_data_complete_case <- readRDS('/Users/beiwen/Library/CloudStorage/OneDrive-UniversityofToronto/PhD Documents/PhD Projects/Objective 1/UKB RAP/UKB Data/Processed/V3_202606/coxph_data_complete_without_htn_301425.rds')
+```
+
+## Types of covariates
+```{r}
+extended_covariates <- c(
+  "age",
+  "sex",
+  "ethnicity_UKB",
+  "education_ISCED",
+  "tdi",
+  "bmi",
+  "bmi2",
+  "waist_to_hip",
+  "smk_status",
+  "pack_year_imputed",
+  "family_lc",
+  "lung_disease_history",
+  "lipid_lowering_meds",
+  "summed_MET_minutes_weekly_imputed",
+  "fasting_time",
+  "centre_group"
+)
+
+continuous_vars <- c(
+  "age",
+  "tdi",
+  "bmi",
+  "waist_to_hip",
+  "pack_year_imputed",
+  "summed_MET_minutes_weekly_imputed",
+  "fasting_time"
+)
+
+categorical_vars <- c(
+  "sex",
+  "ethnicity_UKB",
+  "education_ISCED",
+  "smk_status",
+  "family_lc",
+  "lung_disease_history",
+  "lipid_lowering_meds"
+  )
+
+```
+
+## Collect all Table 1 for all imputed dataset
+```{r}
+# Table 1 for the overall population in each imputed dataset
+tb1_list <- map(
+  imputed_data,
+  ~ CreateTableOne(
+    vars = extended_covariates,
+    data = .x,
+    factorVars = categorical_vars,
+    includeNA = TRUE,
+    test = TRUE
+  )
+)
+
+# Table 1 by lung cancer status in each imputed dataset
+tb2_list <- map(
+  imputed_data,
+  ~ CreateTableOne(
+    vars = extended_covariates,
+    strata = "lungc_status_coxph",
+    data = .x,
+    factorVars = categorical_vars,
+    includeNA = TRUE,
+    test = TRUE
+  )
+)
+
+tb1_list
+tb2_list
+
+```
+
+## Continuous variables - Table 1 for taking the average of the 10 imputed datasets
+```{r}
+# Extract the mean, sd, n for continuous variables from each imputed dataset 
+cont_summary_each_imp <- imap_dfr(
+  imputed_data,
+  function(dat, imp_name) {
+    map_dfr(
+      continuous_vars,
+      function(v) {
+        dat %>%
+          summarise(
+            imputed_dataset = imp_name,
+            variable = v,
+            mean = mean(.data[[v]], na.rm = TRUE),
+            sd = sd(.data[[v]], na.rm = TRUE),
+            n = sum(!is.na(.data[[v]])),
+            .groups = "drop"
+        )
+      }
+    )
+  }
+)
+
+# Take the average of the mean, sd, n range across 10 imputed datasets
+cont_table1_avg <- cont_summary_each_imp %>%
+  group_by(variable) %>%
+  summarise(
+    mean_avg = mean(mean, na.rm = TRUE),
+    sd_avg = mean(sd, na.rm = TRUE),
+    n_min = min(n, na.rm = TRUE),
+    n_max = max(n, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    mean_sd = sprintf("%.2f (%.2f)", mean_avg, sd_avg),
+    n_range = paste0(n_min, "-", n_max)
+  )
+
+cont_table1_avg
+
+# Extract the mean, sd, n for continuous variables by lung cancer status from each imputed dataset 
+cont_summary_each_imp_lungc <- imap_dfr(
+  imputed_data,
+  function(dat, imp_name) {
+    
+    map_dfr(
+      continuous_vars,
+      function(v) {
+        
+        dat %>%
+          group_by(lungc_status_coxph) %>%
+          summarise(
+            imputed_dataset = imp_name,
+            variable = v,
+            mean = mean(.data[[v]], na.rm = TRUE),
+            sd = sd(.data[[v]], na.rm = TRUE),
+            n = sum(!is.na(.data[[v]])),
+            .groups = "drop"
+          )
+      }
+    )
+  }
+)
+
+# Take the average of the mean, sd, n range by lung cancer status across 10 imputed datasets
+cont_table1_avg_lungc <- cont_summary_each_imp_lungc %>%
+  group_by(variable, lungc_status_coxph) %>%
+  summarise(
+    mean_avg = mean(mean, na.rm = TRUE),
+    sd_avg = mean(sd, na.rm = TRUE),
+    n_min = min(n, na.rm = TRUE),
+    n_max = max(n, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    mean_sd = sprintf("%.2f (%.2f)", mean_avg, sd_avg),
+    n_range = paste0(n_min, "-", n_max)
+  )
+
+cont_table1_avg_lungc
+
+```
+
+## Categorical variables - Table 1 for taking the average of the 10 imputed datasets
+```{r}
+# Extract the count and percentage for categorical variables from each imputed dataset 
+categorical_summary_each_imp <- imap_dfr(
+  imputed_data,
+  function(dat, imp_name) {
+    
+    map_dfr(
+      categorical_vars,
+      function(v) {
+        
+        dat %>%
+          filter(!is.na(.data[[v]])) %>%
+          count(level = .data[[v]], name = "count") %>%
+          mutate(
+            imputed_dataset = imp_name,
+            variable = v,
+            pct = 100 * count / sum(count)
+          ) %>%
+          select(
+            imputed_dataset,
+            variable,
+            level,
+            count,
+            pct
+          )
+      }
+    )
+  }
+)
+
+# Take the average of the count and pct across 10 imputed datasets
+categorical_table1_avg <- categorical_summary_each_imp %>%
+  group_by(variable, level) %>%
+  summarise(
+    count_avg = mean(count, na.rm = TRUE),
+    pct_avg = mean(pct, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    n_pct = sprintf("%.0f (%.2f)", count_avg, pct_avg)
+  )
+
+categorical_table1_avg
+
+# Extract the count and percentage for categorical variables from each imputed dataset 
+categorical_summary_each_imp_lungc <- imap_dfr(
+  imputed_data,
+  function(dat, imp_name) {
+    
+    map_dfr(
+      categorical_vars,
+      function(v) {
+        
+        dat %>%
+          group_by(lungc_status_coxph) %>%
+          filter(!is.na(.data[[v]])) %>%
+          count(level = .data[[v]], name = "count") %>%
+          mutate(
+            imputed_dataset = imp_name,
+            variable = v,
+            pct = 100 * count / sum(count)
+          ) %>%
+          select(
+            imputed_dataset,
+            lungc_status_coxph,
+            variable,
+            level,
+            count,
+            pct
+          )
+      }
+    )
+  }
+)
+
+# Take the average of the count and pct by lung cancer status across 10 imputed datasets
+categorical_table1_avg_lungc <- categorical_summary_each_imp_lungc %>%
+  group_by(variable, lungc_status_coxph, level) %>%
+  summarise(
+    count_avg = mean(count, na.rm = TRUE),
+    pct_avg = mean(pct, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    n_pct = sprintf("%.0f (%.2f)", count_avg, pct_avg)
+  )
+
+categorical_table1_avg_lungc
+
+```
+
+## For MET, we use median and IQR instead
+```{r}
+summed_MET_minutes_weekly_imputed <- c("summed_MET_minutes_weekly_imputed")
+
+met_each_imp <- imap_dfr(
+  imputed_data,
+  function(dat, imp_name) {
+    map_dfr(
+      summed_MET_minutes_weekly_imputed,
+      function(v) {
+        dat %>%
+          summarise(
+            imputed_dataset = imp_name,
+            variable = v,
+            median = median(.data[[v]], na.rm = TRUE),
+            q1 = quantile(.data[[v]], probs = 0.25, na.rm = TRUE),
+            q3 = quantile(.data[[v]], probs = 0.75, na.rm = TRUE),
+            n = sum(!is.na(.data[[v]])),
+            .groups = "drop"
+          ) %>%
+  mutate(
+    median_iqr = sprintf("%.2f (%.2f, %.2f)", median, q1, q3)      
+    )
+      }
+    )
+  }
+)
+
+met_each_imp
+
+# Take the average of median and IQR across all datasets
+met_pooled <- met_each_imp %>%
+  group_by(variable) %>%
+  summarise(
+    median = mean(median, na.rm = TRUE),
+    q1 = mean(q1, na.rm = TRUE),
+    q3 = mean(q3, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    median_iqr = sprintf("%.2f (%.2f, %.2f)", median, q1, q3)      
+    )
+  
+met_pooled
+
+# Extract the median and IQR by lung cancer status for MET from each dataset 
+met_each_imp_lungc <- imap_dfr(
+  imputed_data,
+  function(dat, imp_name) {
+    
+    map_dfr(
+      summed_MET_minutes_weekly_imputed,
+      function(v) {
+        
+        dat %>%
+          group_by(lungc_status_coxph) %>%
+          summarise(
+            imputed_dataset = imp_name,
+            variable = v,
+            median = median(.data[[v]], na.rm = TRUE),
+            q1 = quantile(.data[[v]], probs = 0.25, na.rm = TRUE),
+            q3 = quantile(.data[[v]], probs = 0.75, na.rm = TRUE),
+            n = sum(!is.na(.data[[v]])),
+            .groups = "drop"
+          ) %>%
+  mutate(
+    median_iqr = sprintf("%.2f (%.2f, %.2f)", median, q1, q3) )
+      }
+    )
+  }
+)
+
+met_each_imp_lungc
+
+# Take the average of median and IQR by lung cancer status across all datasets
+met_pooled_lungc <- met_each_imp_lungc %>%
+  group_by(variable, lungc_status_coxph) %>%
+  summarise(
+    median = mean(median, na.rm = TRUE),
+    q1 = mean(q1, na.rm = TRUE),
+    q3 = mean(q3, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    median_iqr = sprintf("%.2f (%.2f, %.2f)", median, q1, q3)      
+    
+  )
+
+met_pooled_lungc
+```
+
+## Table 1 for complete-case analysis
+```{r}
+# Load the coxph_data_complete_case and use extended_covariates_original
+extended_covariates_original <- c(
+  "age",
+  "sex",
+  "ethnicity_UKB",
+  "education_ISCED",
+  "tdi",
+  "bmi",
+  "waist_to_hip",
+  "smk_status",
+  "pack_year",
+  "family_lc",
+  "lung_disease_history",
+  "lipid_lowering_meds",
+  "Summed_MET_minutes_weekly",
+  "fasting_time",
+  "centre_group"
+)
+
+tb3 <- CreateTableOne(vars = extended_covariates_original,strata = "lungc_status_coxph", data = coxph_data_complete_case, factorVars=categorical_vars, includeNA = TRUE, test = TRUE)
+print(tb3, catDigits=2, contDigits=2)
+tb4 <- CreateTableOne(vars = extended_covariates_original, data = coxph_data_complete_case, factorVars=categorical_vars, includeNA = TRUE)
+print(tb4, catDigits=2, contDigits=2)
+```
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
