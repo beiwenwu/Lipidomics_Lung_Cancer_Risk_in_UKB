@@ -415,7 +415,6 @@ metabolite_cor_complete_case_ratio <- metabolite_cor_complete_case[
 ]
 
 ################ Save correlation matrics ################
-setwd('/Users/beiwen/Library/CloudStorage/OneDrive-UniversityofToronto/PhD Documents/PhD Projects/Objective 1/UKB RAP/Results')
 saveRDS(imputed_data,"imputed_data.rds")
 saveRDS(pooled_metabolite_cor, "pooled_metabolite_cor.rds")
 saveRDS(pooled_metabolite_cor_abs, "pooled_metabolite_cor_abs.rds")

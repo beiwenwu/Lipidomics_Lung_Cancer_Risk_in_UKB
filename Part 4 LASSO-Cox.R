@@ -249,7 +249,6 @@ selection_frequency_min_ratio <- selected_min |>
   )
 
 ###### Save the LASSO-Cox results ###### 
-setwd('/Users/beiwen/Library/CloudStorage/OneDrive-UniversityofToronto/PhD Documents/PhD Projects/Objective 1/UKB RAP/Results/LASSO/ratio')
 write_xlsx(lasso_results_ratio_coef_1se,"lasso_results_ratio_coef_1se.xlsx")
 write_xlsx(lasso_results_ratio_coef_min,"lasso_results_ratio_coef_min.xlsx")
 saveRDS(lasso_fits_ratio, "lasso_fits_ratio.rds")
@@ -453,7 +452,6 @@ selection_frequency_min_overall <- selected_min_overall |>
   )
 
 ###### Save the LASSO-Cox results ###### 
-setwd('/Users/beiwen/Library/CloudStorage/OneDrive-UniversityofToronto/PhD Documents/PhD Projects/Objective 1/UKB RAP/Results/LASSO/overall')
 write_xlsx(lasso_results_overall_coef_1se,"lasso_results_overall_coef_1se.xlsx")
 write_xlsx(lasso_results_overall_coef_min,"lasso_results_overall_coef_min.xlsx")
 saveRDS(lasso_fits_overall, "lasso_fits_overall.rds")
@@ -522,56 +520,3 @@ lasso_selected_ratio_table <- lasso_selected_ratio_results %>%
   )
 
 write_xlsx(lasso_selected_ratio_table,"lasso_selected_ratio_table.xlsx")
-
-################ Draw the plot for LASSO-selected Multivariable CoxPH Model ################
-metabolite_order <- c(
-  "L_LDL_CE_%",
-  "S_LDL_CE_%",
-  "XS_VLDL_FC_%",
-  "L_HDL_FC_%",
-  "XXL_VLDL_TG_%",
-  "XXL_VLDL_PL_%",
-  "IDL_PL_%",
-  "LA_%"
-)
-
-lasso_selected_ratio_table <- lasso_selected_ratio_table %>%
-  mutate(
-    Metabolite = factor(
-      Metabolite,
-      levels = rev(metabolite_order)
-    )
-  )
-
-lasso_selected_ratio_plot <- ggplot(lasso_selected_ratio_table, aes(x = Metabolite, y = HR, ymin = LCL, ymax = UCL)) +
-  geom_hline(yintercept = 1, linetype = 2, color = "grey50") +
-  geom_pointrange(size = 0.6, color = "black") +
-  coord_flip() +
-  scale_y_continuous(
-    breaks = c(0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8),
-  ) +
-  labs(
-    x = NULL,
-    y = "Hazard Ratios (95% CI)",
-  ) +
-  theme_minimal(base_size = 13) +
-  theme(
-    panel.grid.major.x = element_blank(),  # remove vertical grid lines
-    panel.grid.minor.x = element_blank(),  # remove minor vertical grid lines
-    panel.grid.major.y = element_blank(),  # remove horizontal grid lines
-    axis.ticks.y = element_blank(),        # hide ticks for variable names
-    plot.title = element_text(face = "bold", hjust = 0.5),
-    axis.line.x = element_line(color = "black", linewidth = 0.5),
-    axis.ticks.x = element_line(color = "black", linewidth = 0.4),
-    axis.ticks.length.x = unit(2.5, "pt"),
-    axis.line.y = element_line(color = "black", linewidth = 0.6)
-    
-  )
-
-tiff("lasso_selected_ratio_forestplot.tiff",
-     width = 280, height = 160, units = "mm", res = 600)
-
-lasso_selected_ratio_plot
-
-dev.off()
-

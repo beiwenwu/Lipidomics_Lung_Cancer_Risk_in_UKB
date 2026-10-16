@@ -500,7 +500,6 @@ results_complete_case <- run_full_analysis(
 )
 
 ################ Save CoxPH results ################
-setwd("M:/shared/Beiwen Wu/Project 1/UKB_RAP/Results")
 write_xlsx(results_overall, "coxph_results_overall.xlsx")
 write_xlsx(results_female, "coxph_results_female.xlsx")
 write_xlsx(results_male, "coxph_results_male.xlsx")
